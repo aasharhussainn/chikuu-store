@@ -4,16 +4,38 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { client } from "../sanity/client";
 
+// --- ADDED TYPES TO FIX VERCEL ERRORS ---
+interface Product {
+  id: string;
+  name: string;
+  price: number;
+  currency?: string;
+  desc?: string;
+  category?: string;
+  sizes?: string[];
+  colors?: string[];
+  inStock?: boolean;
+  images?: string[];
+  img: string;
+}
+
+interface CartItem extends Product {
+  selectedSize: string;
+  selectedColor: string;
+  cartId: number;
+}
+// ---------------------------------------
+
 export default function Home() {
-  const [selectedProduct, setSelectedProduct] = useState(null);
-  const [cart, setCart] = useState([]);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isTypesOpen, setIsTypesOpen] = useState(false);
-  const [activeCategory, setActiveCategory] = useState(null);
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", address: "" });
-  const [products, setProducts] = useState([]); 
+  const [products, setProducts] = useState<Product[]>([]); 
   const [chosenSize, setChosenSize] = useState("");
   const [chosenColor, setChosenColor] = useState("");
 
@@ -38,10 +60,11 @@ export default function Home() {
     fetchSanityProducts();
   }, []);
 
-  const getSymbol = (prod) => prod?.currency || "$";
-  const dynamicCategories = [...new Set(products.map((product) => product.category).filter(Boolean))];
+  // FIXED: Added types to parameters to satisfy TypeScript
+  const getSymbol = (prod: any) => prod?.currency || "$";
+  const dynamicCategories = [...new Set(products.map((product: Product) => product.category).filter(Boolean))];
 
-  const scrollToReviews = (e) => {
+  const scrollToReviews = (e: React.MouseEvent) => {
     e.preventDefault();
     setIsAboutOpen(false);
     setActiveCategory(null);
@@ -61,8 +84,8 @@ export default function Home() {
     { id: 3, name: "Zainab R.", city: "Islamabad", text: "Fast shipping and elegant packaging. The designs are truly unique and modern.", stars: 5 },
   ];
 
-  const addToCart = (product) => {
-    const itemToAdd = {
+  const addToCart = (product: Product) => {
+    const itemToAdd: CartItem = {
       ...product,
       selectedSize: chosenSize || "Standard",
       selectedColor: chosenColor || "As Shown",
@@ -75,13 +98,13 @@ export default function Home() {
     setIsCartOpen(true);
   };
 
-  const removeFromCart = (cartId) => {
+  const removeFromCart = (cartId: number) => {
     setCart(cart.filter(item => item.cartId !== cartId));
   };
 
   const cartTotal = cart.reduce((total, item) => total + item.price, 0);
 
-  const handleFinalCheckout = (e) => {
+  const handleFinalCheckout = (e: React.FormEvent) => {
     e.preventDefault();
     const orderDetails = cart.map((item) => `• ${item.name} (${item.selectedSize} / ${item.selectedColor}) - ${getSymbol(item)}${item.price}`).join("%0A");
     const customerInfo = `*Customer Details:*%0A👤 Name: ${formData.name}%0A✉️ Email: ${formData.email}%0A📞 Phone: ${formData.phone}%0A🏠 Address: ${formData.address}`;
@@ -105,7 +128,7 @@ export default function Home() {
               <AnimatePresence>
                 {isTypesOpen && (
                   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute top-full left-0 mt-4 bg-white shadow-2xl rounded-2xl p-6 w-56 border border-gray-100 flex flex-col gap-4 z-[160]">
-                    {dynamicCategories.map((cat) => (
+                    {dynamicCategories.map((cat: any) => (
                       <button key={cat} onClick={() => { setActiveCategory(cat); setIsTypesOpen(false); setIsAboutOpen(false); }} className="text-left hover:text-[#C5A059] transition-colors py-1 border-b border-gray-50 last:border-0 uppercase text-sm tracking-widest">{cat}</button>
                     ))}
                   </motion.div>
@@ -132,7 +155,7 @@ export default function Home() {
               <button onClick={() => {setIsAboutOpen(true); setIsTypesOpen(false); setActiveCategory(null);}} className="text-left font-bold uppercase text-sm">About</button>
               <div className="flex flex-col gap-3 pl-4 border-l-2 border-[#C5A059]">
                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Categories</p>
-                {dynamicCategories.map((cat) => (
+                {dynamicCategories.map((cat: any) => (
                   <button key={cat} onClick={() => { setActiveCategory(cat); setIsTypesOpen(false); setIsAboutOpen(false); }} className="text-left text-xs uppercase font-medium">{cat}</button>
                 ))}
               </div>
