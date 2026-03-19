@@ -47,8 +47,7 @@ export default function Home() {
   }, []);
 
   // Helper to show the correct currency symbol
-  const getSymbol = (prod) => prod?.currency || "$";
-
+const getSymbol = (prod: any) => prod?.currency || "$";
   // <-- SMART LOGIC: Extract unique categories directly from Sanity products
   const dynamicCategories = [...new Set(products.map((product) => product.category).filter(Boolean))];
 
