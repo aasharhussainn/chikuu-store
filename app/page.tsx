@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { client } from "../sanity/client";
+import { trackEvent } from "../lib/analytics";
 
 // --- ADDED TYPES TO FIX VERCEL ERRORS ---
 interface Product {
@@ -114,6 +115,17 @@ export default function Home() {
     { id: 3, name: "Zainab R.", city: "Islamabad", text: "Fast shipping and elegant packaging. The designs are truly unique and modern.", stars: 5 },
   ];
 
+  const handleOpenProduct = (product: Product) => {
+    setSelectedProduct(product);
+    trackEvent("view_item", {
+      item_id: product.id,
+      item_name: product.name,
+      item_category: product.category,
+      price: product.price,
+      currency: product.currency || "USD",
+    });
+  };
+
   const addToCart = (product: Product) => {
     const itemToAdd: CartItem = {
       ...product,
@@ -126,6 +138,15 @@ export default function Home() {
     setChosenSize(""); 
     setChosenColor("");
     setIsCartOpen(true);
+    trackEvent("add_to_cart", {
+      item_id: product.id,
+      item_name: product.name,
+      item_category: product.category,
+      price: product.price,
+      currency: product.currency || "USD",
+      size: itemToAdd.selectedSize,
+      color: itemToAdd.selectedColor,
+    });
   };
 
   const removeFromCart = (cartId: number) => {
@@ -136,6 +157,13 @@ export default function Home() {
 
   const handleFinalCheckout = (e: React.FormEvent) => {
     e.preventDefault();
+    trackEvent("purchase", {
+      transaction_id: `WA_${Date.now()}`,
+      value: cartTotal,
+      currency: cart[0]?.currency || "USD",
+      items_count: cart.length,
+      customer_city: formData.address,
+    });
     const orderDetails = cart.map((item) => `• ${item.name} (${item.selectedSize} / ${item.selectedColor}) - ${getSymbol(item)}${item.price}`).join("%0A");
     const customerInfo = `*Customer Details:*%0A👤 Name: ${formData.name}%0A✉️ Email: ${formData.email}%0A📞 Phone: ${formData.phone}%0A🏠 Address: ${formData.address}`;
     const fullMessage = `*New Order from Chikuu Store*%0A%0A${customerInfo}%0A%0A*Order Details:*%0A${orderDetails}%0A%0A*Total Amount:* ${getSymbol(cart[0])}${cartTotal}.00`;
@@ -229,7 +257,7 @@ export default function Home() {
               <h2 className="text-3xl md:text-6xl font-extrabold uppercase mb-8 md:mb-16 tracking-tighter border-l-8 border-[#C5A059] pl-6">{activeCategory}</h2>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-12">
                 {products.filter((product) => product.category === activeCategory).map((product, index) => (
-                  <motion.div key={product.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }} onClick={() => setSelectedProduct(product)} className="group cursor-pointer relative">
+                  <motion.div key={product.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }} onClick={() => handleOpenProduct(product)} className="group cursor-pointer relative">
                     {product.inStock === false && (
                        <div className="absolute top-2 left-2 md:top-4 md:left-4 bg-red-500 text-white text-[8px] md:text-xs font-bold px-2 py-0.5 md:px-3 md:py-1 rounded-full z-10 uppercase shadow-md">Sold Out</div>
                     )}
@@ -260,7 +288,7 @@ export default function Home() {
 
           <section className="px-4 md:px-8 pb-20 max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-12">
             {products.map((product, index) => (
-              <motion.div key={product.id} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.1 }} transition={{ duration: 0.5, delay: (index % 2) * 0.1, ease: "easeOut" }} onClick={() => setSelectedProduct(product)} className="group cursor-pointer relative">
+              <motion.div key={product.id} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.1 }} transition={{ duration: 0.5, delay: (index % 2) * 0.1, ease: "easeOut" }} onClick={() => handleOpenProduct(product)} className="group cursor-pointer relative">
                  {product.inStock === false && (
                     <div className="absolute top-2 left-2 md:top-4 md:left-4 bg-red-500 text-white text-[8px] md:text-xs font-bold px-2 py-0.5 md:px-3 md:py-1 rounded-full z-10 uppercase shadow-md">Sold Out</div>
                  )}
@@ -407,7 +435,21 @@ export default function Home() {
                   <span>Total</span>
                   <span>{getSymbol(cart[0])}{cartTotal}.00</span>
                 </div>
-                <button onClick={() => { if (cart.length === 0) return alert("Your bag is empty!"); setIsCartOpen(false); setIsCheckoutOpen(true); }} className="w-full bg-[#C5A059] text-white py-4 rounded-full font-bold shadow-lg hover:bg-black transition-colors duration-200 uppercase tracking-widest text-xs md:text-sm">CHECKOUT NOW</button>
+                <button
+                  onClick={() => {
+                    if (cart.length === 0) return alert("Your bag is empty!");
+                    setIsCartOpen(false);
+                    setIsCheckoutOpen(true);
+                    trackEvent("begin_checkout", {
+                      value: cartTotal,
+                      currency: cart[0]?.currency || "USD",
+                      items_count: cart.length,
+                    });
+                  }}
+                  className="w-full bg-[#C5A059] text-white py-4 rounded-full font-bold shadow-lg hover:bg-black transition-colors duration-200 uppercase tracking-widest text-xs md:text-sm"
+                >
+                  CHECKOUT NOW
+                </button>
               </div>
             </motion.div>
           </>
