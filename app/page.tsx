@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { client } from "../sanity/client";
 
@@ -38,6 +38,35 @@ export default function Home() {
   const [products, setProducts] = useState<Product[]>([]); 
   const [chosenSize, setChosenSize] = useState("");
   const [chosenColor, setChosenColor] = useState("");
+  const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
+  const isLoadedRef = useRef(false);
+
+  // Load saved cart from localStorage on mount safely
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        const savedCart = localStorage.getItem("chikuu_cart");
+        if (savedCart) {
+          setCart(JSON.parse(savedCart));
+        }
+      } catch (err) {
+        console.error("Could not load cart from localStorage", err);
+      } finally {
+        isLoadedRef.current = true;
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Save cart to localStorage on updates after initial load
+  useEffect(() => {
+    if (!isLoadedRef.current) return;
+    try {
+      localStorage.setItem("chikuu_cart", JSON.stringify(cart));
+    } catch (err) {
+      console.error("Could not save cart to localStorage", err);
+    }
+  }, [cart]);
 
   useEffect(() => {
     async function fetchSanityProducts() {
@@ -52,7 +81,7 @@ export default function Home() {
         colors,
         inStock, 
         "images": images[].asset->url,
-        "img": coalesce(images[0].asset->url, "/cloth1.jpg") 
+        "img": coalesce(images[0].asset->url, "/logo.png") 
       }`;
       const sanityData = await client.fetch(query);
       setProducts(sanityData);
@@ -60,9 +89,10 @@ export default function Home() {
     fetchSanityProducts();
   }, []);
 
-  // FIXED: Added types to parameters to satisfy TypeScript
-  const getSymbol = (prod: any) => prod?.currency || "$";
-  const dynamicCategories = [...new Set(products.map((product: Product) => product.category).filter(Boolean))];
+  const getSymbol = (prod?: { currency?: string } | null) => prod?.currency || "$";
+  const dynamicCategories: string[] = Array.from(
+    new Set(products.map((product: Product) => product.category).filter((c): c is string => Boolean(c)))
+  );
 
   const scrollToReviews = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -109,9 +139,10 @@ export default function Home() {
     const orderDetails = cart.map((item) => `• ${item.name} (${item.selectedSize} / ${item.selectedColor}) - ${getSymbol(item)}${item.price}`).join("%0A");
     const customerInfo = `*Customer Details:*%0A👤 Name: ${formData.name}%0A✉️ Email: ${formData.email}%0A📞 Phone: ${formData.phone}%0A🏠 Address: ${formData.address}`;
     const fullMessage = `*New Order from Chikuu Store*%0A%0A${customerInfo}%0A%0A*Order Details:*%0A${orderDetails}%0A%0A*Total Amount:* ${getSymbol(cart[0])}${cartTotal}.00`;
-    window.open(`https://wa.me/${whatsappNumber.replace('+', '')}?text=${fullMessage}`, "_blank");
+    const whatsappUrl = `https://wa.me/${whatsappNumber.replace('+', '')}?text=${fullMessage}`;
     setIsCheckoutOpen(false);
     setCart([]);
+    window.location.href = whatsappUrl;
   };
 
   return (
@@ -128,7 +159,7 @@ export default function Home() {
               <AnimatePresence>
                 {isTypesOpen && (
                   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute top-full left-0 mt-4 bg-white shadow-2xl rounded-2xl p-6 w-56 border border-gray-100 flex flex-col gap-4 z-[160]">
-                    {dynamicCategories.map((cat: any) => (
+                    {dynamicCategories.map((cat) => (
                       <button key={cat} onClick={() => { setActiveCategory(cat); setIsTypesOpen(false); setIsAboutOpen(false); }} className="text-left hover:text-[#C5A059] transition-colors py-1 border-b border-gray-50 last:border-0 uppercase text-sm tracking-widest">{cat}</button>
                     ))}
                   </motion.div>
@@ -155,7 +186,7 @@ export default function Home() {
               <button onClick={() => {setIsAboutOpen(true); setIsTypesOpen(false); setActiveCategory(null);}} className="text-left font-bold uppercase text-sm">About</button>
               <div className="flex flex-col gap-3 pl-4 border-l-2 border-[#C5A059]">
                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Categories</p>
-                {dynamicCategories.map((cat: any) => (
+                {dynamicCategories.map((cat) => (
                   <button key={cat} onClick={() => { setActiveCategory(cat); setIsTypesOpen(false); setIsAboutOpen(false); }} className="text-left text-xs uppercase font-medium">{cat}</button>
                 ))}
               </div>
@@ -178,7 +209,7 @@ export default function Home() {
             <div className="p-8 md:p-16 max-w-7xl mx-auto mt-[100px] md:mt-[130px]">
               <h2 className="text-3xl md:text-6xl font-extrabold uppercase mb-8 md:mb-16 tracking-tighter border-l-8 border-[#C5A059] pl-6">About Chikuu</h2>
               <div className="text-base md:text-xl text-gray-600 leading-relaxed max-w-3xl space-y-6 md:space-y-8">
-                <p>Welcome to <span className="font-bold text-black uppercase">Chikuu</span>, your premier destination for luxury women's fashion in Karachi, Pakistan.</p>
+                <p>Welcome to <span className="font-bold text-black uppercase">Chikuu</span>, your premier destination for luxury fashion in Karachi, Pakistan.</p>
                 <p>Founded with a passion for elegance and comfort, our collections range from delicate Shafoon evening wear to breathable everyday Cotton essentials.</p>
               </div>
             </div>
@@ -202,8 +233,8 @@ export default function Home() {
                     {product.inStock === false && (
                        <div className="absolute top-2 left-2 md:top-4 md:left-4 bg-red-500 text-white text-[8px] md:text-xs font-bold px-2 py-0.5 md:px-3 md:py-1 rounded-full z-10 uppercase shadow-md">Sold Out</div>
                     )}
-                    <div className="w-full h-[200px] md:h-[400px] bg-gray-100 mb-2 md:mb-4 overflow-hidden rounded-xl md:rounded-3xl shadow-sm">
-                      <img src={product.img} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={product.name} />
+                    <div className="w-full h-[240px] md:h-[420px] bg-white border border-gray-100 mb-2 md:mb-4 overflow-hidden rounded-xl md:rounded-2xl shadow-xs flex items-center justify-center p-2">
+                      <img src={product.img} className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500" alt={product.name} />
                     </div>
                     <h4 className="text-xs md:text-xl font-bold uppercase tracking-wide truncate">{product.name}</h4>
                     <p className="text-[#C5A059] text-xs md:text-base font-semibold">{getSymbol(product)}{product.price}.00</p>
@@ -233,8 +264,8 @@ export default function Home() {
                  {product.inStock === false && (
                     <div className="absolute top-2 left-2 md:top-4 md:left-4 bg-red-500 text-white text-[8px] md:text-xs font-bold px-2 py-0.5 md:px-3 md:py-1 rounded-full z-10 uppercase shadow-md">Sold Out</div>
                  )}
-                <div className="w-full h-[200px] md:h-[400px] bg-gray-100 mb-2 md:mb-4 overflow-hidden rounded-xl md:rounded-2xl shadow-sm">
-                  <img src={product.img} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={product.name} />
+                <div className="w-full h-[240px] md:h-[420px] bg-white border border-gray-100 mb-2 md:mb-4 overflow-hidden rounded-xl md:rounded-2xl shadow-xs flex items-center justify-center p-2">
+                  <img src={product.img} className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500" alt={product.name} />
                 </div>
                 <h4 className="text-xs md:text-xl font-bold uppercase tracking-wide truncate">{product.name}</h4>
                 <p className="text-[#C5A059] text-xs md:text-base font-semibold">{getSymbol(product)}{product.price}.00</p>
@@ -249,7 +280,7 @@ export default function Home() {
                 {reviews.map((review, index) => (
                   <motion.div key={review.id} initial={{ opacity: 0, scale: 0.9 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ delay: index * 0.1 }} className="bg-white p-6 md:p-8 rounded-2xl md:rounded-3xl border border-gray-100 shadow-sm">
                     <div className="flex justify-center mb-4 text-[#C5A059]">{"★".repeat(review.stars)}</div>
-                    <p className="italic text-xs md:text-base text-gray-600 mb-4 md:mb-6">"{review.text}"</p>
+                    <p className="italic text-xs md:text-base text-gray-600 mb-4 md:mb-6">&ldquo;{review.text}&rdquo;</p>
                     <p className="font-bold uppercase text-[10px] md:text-sm">{review.name} — {review.city}</p>
                   </motion.div>
                 ))}
@@ -269,15 +300,39 @@ export default function Home() {
         {selectedProduct && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedProduct(null)} className="fixed inset-0 bg-black/40 z-[200] backdrop-blur-sm" />
-            <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="fixed right-0 top-0 h-full w-full md:w-[450px] bg-white z-[210] p-6 md:p-10 shadow-2xl overflow-y-auto">
+            <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="fixed right-0 top-0 h-full w-full md:w-[480px] bg-white z-[210] p-6 md:p-10 shadow-2xl overflow-y-auto">
               <button onClick={() => setSelectedProduct(null)} className="mb-6 font-bold text-xs hover:text-[#C5A059]">← CLOSE</button>
               <div className="flex flex-col gap-4 mb-6">
-                <img src={selectedProduct.img} className="w-full h-64 md:h-80 object-cover rounded-2xl shadow-md" alt={selectedProduct.name} />
-                <div className="flex gap-2 overflow-x-auto pb-2">
-                   {selectedProduct.images?.map((image, idx) => (
-                     <img key={idx} src={image} className="w-16 h-16 object-cover rounded-lg cursor-pointer border hover:border-[#C5A059]" onClick={() => setSelectedProduct({...selectedProduct, img: image})} />
-                   ))}
+                <div
+                  onClick={() => setFullScreenImage(selectedProduct.img)}
+                  className="relative w-full h-[380px] md:h-[480px] bg-white rounded-2xl flex items-center justify-center p-2 border border-gray-200 shadow-xs overflow-hidden cursor-zoom-in group"
+                  title="Click to view full screen"
+                >
+                  <img
+                    src={selectedProduct.img}
+                    className="w-full h-full object-contain rounded-xl transition-transform duration-300 group-hover:scale-[1.02]"
+                    alt={selectedProduct.name}
+                  />
+                  <div className="absolute bottom-3 right-3 bg-black/75 hover:bg-black text-white text-[10px] md:text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg backdrop-blur-xs transition-all pointer-events-none">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                    </svg>
+                    <span>Full Screen</span>
+                  </div>
                 </div>
+                {selectedProduct.images && selectedProduct.images.length > 1 && (
+                  <div className="flex gap-2 overflow-x-auto pb-2">
+                    {selectedProduct.images.map((image, idx) => (
+                      <img
+                        key={idx}
+                        src={image}
+                        alt={`${selectedProduct.name} image ${idx + 1}`}
+                        className={`w-16 h-16 object-contain bg-white rounded-lg cursor-pointer border-2 p-1 transition-all ${selectedProduct.img === image ? "border-[#C5A059] scale-105 shadow-sm" : "border-gray-200 hover:border-gray-400"}`}
+                        onClick={() => setSelectedProduct({ ...selectedProduct, img: image })}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
               <h2 className="text-xl md:text-3xl font-bold mb-2 uppercase">{selectedProduct.name}</h2>
               <p className="text-[#C5A059] text-lg md:text-2xl font-bold mb-4">{getSymbol(selectedProduct)}{selectedProduct.price}.00</p>
@@ -295,12 +350,21 @@ export default function Home() {
                 <div className="mb-6">
                   <h4 className="text-[10px] font-bold uppercase mb-3 text-gray-400 tracking-widest">Select Color:</h4>
                   <div className="flex flex-wrap gap-4">
-                    {selectedProduct.colors.map((color) => (
-                      <div key={color} className="flex flex-col items-center gap-1">
-                        <button onClick={() => setChosenColor(color)} style={{ backgroundColor: color.toLowerCase().replace(/\s/g, '') }} className={`w-6 h-6 md:w-8 md:h-8 rounded-full border-2 transition-all shadow-sm ${chosenColor === color ? "border-black scale-110 ring-2 ring-offset-2 ring-gray-200" : "border-transparent"}`} title={color} />
-                        <span className="text-[8px] uppercase font-bold text-gray-400 mt-1">{color}</span>
-                      </div>
-                    ))}
+                    {selectedProduct.colors.map((color) => {
+                      const isSelected = chosenColor === color;
+                      return (
+                        <div key={color} className="flex flex-col items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setChosenColor(color)}
+                            style={{ backgroundColor: color.toLowerCase().replace(/\s/g, '') }}
+                            className={`w-6 h-6 md:w-8 md:h-8 rounded-full border-2 transition-all shadow-sm ${isSelected ? "border-black scale-110 ring-2 ring-offset-2 ring-gray-200" : "border-gray-200"}`}
+                            title={color}
+                          />
+                          <span className="text-[8px] uppercase font-bold text-gray-400 mt-1">{color}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -329,7 +393,9 @@ export default function Home() {
                       <p className="text-[#C5A059] text-[10px] md:text-xs font-bold">{getSymbol(item)}{item.price}.00</p>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-[8px] text-gray-400 font-bold uppercase">{item.selectedSize}</span>
-                        <div className="w-2.5 h-2.5 rounded-full border border-gray-200 shadow-inner" style={{ backgroundColor: item.selectedColor.toLowerCase().replace(/\s/g, '') }} />
+                        {item.selectedColor && (
+                          <span className="text-[8px] text-gray-400 font-bold uppercase">• {item.selectedColor}</span>
+                        )}
                       </div>
                     </div>
                     <button onClick={() => removeFromCart(item.cartId)} className="text-gray-300 hover:text-red-500 font-bold px-2 transition-colors">✕</button>
@@ -370,6 +436,60 @@ export default function Home() {
           </>
         )}
       </AnimatePresence>
+
+      {/* Full Screen Image Lightbox Modal */}
+      <AnimatePresence>
+        {fullScreenImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[300] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-4 md:p-8"
+            onClick={() => setFullScreenImage(null)}
+          >
+            <button
+              onClick={() => setFullScreenImage(null)}
+              className="absolute top-5 right-5 z-[310] bg-white/10 hover:bg-white/20 text-white border border-white/20 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2 cursor-pointer shadow-lg"
+            >
+              <span>✕</span> CLOSE
+            </button>
+
+            <div
+              className="relative max-w-[95vw] max-h-[82vh] flex items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={fullScreenImage}
+                alt="Full screen preview"
+                className="max-h-[82vh] max-w-[95vw] object-contain rounded-xl shadow-2xl select-none"
+              />
+            </div>
+
+            {selectedProduct?.images && selectedProduct.images.length > 1 && (
+              <div
+                className="absolute bottom-5 flex gap-2 overflow-x-auto max-w-[90vw] p-2 bg-black/60 backdrop-blur-md rounded-2xl border border-white/10 z-[310]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {selectedProduct.images.map((image, idx) => (
+                  <img
+                    key={idx}
+                    src={image}
+                    alt="Thumbnail"
+                    className={`w-14 h-14 object-contain bg-white rounded-lg cursor-pointer border-2 p-0.5 transition-all ${fullScreenImage === image ? "border-[#C5A059] scale-105" : "border-transparent opacity-60 hover:opacity-100"}`}
+                    onClick={() => {
+                      setFullScreenImage(image);
+                      if (selectedProduct) {
+                        setSelectedProduct({ ...selectedProduct, img: image });
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <footer className="bg-gray-50 py-10 px-6 border-t border-gray-100 text-center">
         <p className="text-[10px] text-gray-400 font-medium uppercase tracking-[0.2em]">© 2026 CHIKUU CLOTHING LTD. KARACHI, PAKISTAN</p>
       </footer>

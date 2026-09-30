@@ -26,8 +26,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        {/* CHANGE 2: Ensures your custom icon is used in the tab */}
-        <link rel="icon" href="/favicon.ico" />
+        {/* Uses brand logo as favicon */}
+        <link rel="icon" href="/logo.png" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
